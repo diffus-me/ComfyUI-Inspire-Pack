@@ -191,8 +191,8 @@ class LoadImagesFromDirList:
 
 class LoadImageInspire:
     @classmethod
-    def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
+    def INPUT_TYPES(s, user_hash: str):
+        input_dir = folder_paths.get_input_directory(user_hash)
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required": {
                                 "image": (sorted(files) + ["#DATA"], {"image_upload": True}),

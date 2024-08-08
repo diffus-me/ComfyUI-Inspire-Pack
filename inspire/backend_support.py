@@ -1,6 +1,7 @@
 import json
 import os
 
+import execution_context
 import folder_paths
 import nodes
 from server import PromptServer
@@ -338,13 +339,16 @@ class ShowCachedInfo:
 
 class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
-                    "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                    "ckpt_name": (folder_paths.get_filename_list(context, "checkpoints"), ),
                     "key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'ckpt_name' as the key."}),
                 },
                 "optional": {
                     "mode": (['Auto', 'Override Cache', 'Read Only'],),
+                },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT"
                 }}
 
     RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
@@ -353,7 +357,7 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
 
     CATEGORY = "InspirePack/Backend"
 
-    def doit(self, ckpt_name, key_opt, mode='Auto'):
+    def doit(self, ckpt_name, key_opt, mode='Auto', context: execution_context.ExecutionContext = None):
         if mode == 'Read Only':
             if key_opt.strip() == '':
                 raise Exception("[CheckpointLoaderSimpleShared] key_opt cannot be omit if mode is 'Read Only'")
@@ -364,7 +368,7 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
             key = key_opt.strip()
 
         if key not in cache or mode == 'Override Cache':
-            res = self.load_checkpoint(ckpt_name)
+            res = self.load_checkpoint(ckpt_name, context)
             update_cache(key, "ckpt", (False, res))
             cache_kind = 'ckpt'
             print(f"[Inspire Pack] CheckpointLoaderSimpleShared: Ckpt '{ckpt_name}' is cached to '{key}'.")
@@ -402,8 +406,8 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
 
 class StableCascade_CheckpointLoader:
     @classmethod
-    def INPUT_TYPES(s):
-        ckpts = folder_paths.get_filename_list("checkpoints")
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
+        ckpts = folder_paths.get_filename_list(context, "checkpoints")
         default_stage_b = ''
         default_stage_c = ''
 

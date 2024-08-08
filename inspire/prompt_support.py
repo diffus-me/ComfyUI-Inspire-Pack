@@ -5,6 +5,8 @@ import shutil
 import yaml
 
 from PIL import Image
+
+import execution_context
 import nodes
 import torch
 
@@ -241,8 +243,8 @@ prompt_blacklist = set([
 
 class PromptExtractor:
     @classmethod
-    def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
+    def INPUT_TYPES(s, user_hash:str):
+        input_dir = folder_paths.get_input_directory(user_hash)
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required": {
                     "image": (sorted(files), {"image_upload": True}),
@@ -250,7 +252,10 @@ class PromptExtractor:
                     "negative_id": ("STRING", {}),
                     "info": ("STRING", {"multiline": True})
                     },
-                "hidden": {"unique_id": "UNIQUE_ID"},
+                "hidden": {
+                    "unique_id": "UNIQUE_ID",
+                    "user_hash": "USER_HASH"
+                    },
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -261,8 +266,8 @@ class PromptExtractor:
 
     OUTPUT_NODE = True
 
-    def doit(self, image, positive_id, negative_id, info, unique_id):
-        image_path = folder_paths.get_annotated_filepath(image)
+    def doit(self, image, positive_id, negative_id, info, unique_id, user_hash):
+        image_path = folder_paths.get_annotated_filepath(image, user_hash)
         info = Image.open(image_path).info
 
         positive = ""
@@ -420,7 +425,7 @@ class BNK_EncoderWrapper:
 
 class WildcardEncodeInspire:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
                         "model": ("MODEL",),
                         "clip": ("CLIP",),
@@ -429,10 +434,13 @@ class WildcardEncodeInspire:
                         "wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Wildcard Prompt (User Input)'}),
                         "populated_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Populated Prompt (Will be generated automatically)'}),
                         "mode": ("BOOLEAN", {"default": True, "label_on": "Populate", "label_off": "Fixed"}),
-                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list("loras"), ),
+                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list(context, "loras"), ),
                         "Select to add Wildcard": (["Select the Wildcard to add to the text"],),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
+                    "hidden": {
+                        "context": "EXECUTION_CONTEXT"
+                    }
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -451,22 +459,22 @@ class WildcardEncodeInspire:
                                           "To use 'Wildcard Encode (Inspire)' node, 'Impact Pack' extension is required.")
             raise Exception(f"[ERROR] To use 'Wildcard Encode (Inspire)', you need to install 'Impact Pack'")
 
-        model, clip, conditioning = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=populated, model=kwargs['model'], clip=kwargs['clip'], clip_encoder=clip_encoder)
+        model, clip, conditioning = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=kwargs['context'], wildcard_opt=populated, model=kwargs['model'], clip=kwargs['clip'], clip_encoder=clip_encoder)
         return (model, clip, conditioning, populated)
 
 
 class MakeBasicPipe:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
-                        "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                        "ckpt_name": (folder_paths.get_filename_list(context, "checkpoints"), ),
                         "ckpt_key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'ckpt_name' as the key." }),
 
                         "positive_wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Positive Prompt (User Input)'}),
                         "negative_wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Negative Prompt (User Input)'}),
 
                         "Add selection to": ("BOOLEAN", {"default": True, "label_on": "Positive", "label_off": "Negative"}),
-                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list("loras"),),
+                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list(context, "loras"),),
                         "Select to add Wildcard": (["Select the Wildcard to add to the text"],),
                         "wildcard_mode": ("BOOLEAN", {"default": True, "label_on": "Populate", "label_off": "Fixed"}),
 
@@ -483,6 +491,9 @@ class MakeBasicPipe:
                 "optional": {
                         "vae_opt": ("VAE",)
                     },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT"
+                }
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -502,10 +513,11 @@ class MakeBasicPipe:
                                           "To use 'Make Basic Pipe (Inspire)' node, 'Impact Pack' extension is required.")
             raise Exception(f"[ERROR] To use 'Make Basic Pipe (Inspire)', you need to install 'Impact Pack'")
 
-        model, clip, vae, key = CheckpointLoaderSimpleShared().doit(ckpt_name=kwargs['ckpt_name'], key_opt=kwargs['ckpt_key_opt'])
+        context = kwargs['context']
+        model, clip, vae, key = CheckpointLoaderSimpleShared().doit(ckpt_name=kwargs['ckpt_name'], key_opt=kwargs['ckpt_key_opt'], context=context)
         clip = nodes.CLIPSetLastLayer().set_last_layer(clip, kwargs['stop_at_clip_layer'])[0]
-        model, clip, positive = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=pos_populated, model=model, clip=clip, clip_encoder=clip_encoder)
-        model, clip, negative = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=neg_populated, model=model, clip=clip, clip_encoder=clip_encoder)
+        model, clip, positive = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=context, wildcard_opt=pos_populated, model=model, clip=clip, clip_encoder=clip_encoder)
+        model, clip, negative = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=context, wildcard_opt=neg_populated, model=model, clip=clip, clip_encoder=clip_encoder)
 
         if 'vae_opt' in kwargs:
             vae = kwargs['vae_opt']

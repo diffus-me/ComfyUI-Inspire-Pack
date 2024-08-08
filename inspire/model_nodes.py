@@ -1,3 +1,4 @@
+import execution_context
 import nodes
 import folder_paths
 import os
@@ -36,11 +37,11 @@ model_preset = {
     }
 
 
-def lookup_model(model_dir, name):
+def lookup_model(context: execution_context.ExecutionContext, model_dir, name):
     if name is None:
         return None, "N/A"
 
-    names = [(os.path.splitext(os.path.basename(x))[0], x) for x in folder_paths.get_filename_list(model_dir)]
+    names = [(os.path.splitext(os.path.basename(x))[0], x) for x in folder_paths.get_filename_list(context, model_dir)]
     resolved_name = [y for x, y in names if x == name]
 
     if len(resolved_name) > 0:
@@ -63,7 +64,7 @@ class IPAdapterModelHelper:
                 "insightface_provider": (["CPU", "CUDA", "ROCM"], ),
                 "cache_mode": (["insightface only", "clip_vision only", "all", "none"], {"default": "insightface only"}),
             },
-            "hidden": {"unique_id": "UNIQUE_ID"}
+            "hidden": {"unique_id": "UNIQUE_ID", "context": "EXECUTION_CONTEXT"}
         }
 
     RETURN_TYPES = ("IPADAPTER_PIPE", "IPADAPTER", "CLIP_VISION", "INSIGHTFACE", "MODEL", "CLIP", "STRING", "STRING")
@@ -72,7 +73,7 @@ class IPAdapterModelHelper:
 
     CATEGORY = "InspirePack/models"
 
-    def doit(self, model, clip, preset, lora_strength_model, lora_strength_clip, insightface_provider, cache_mode="none", unique_id=None):
+    def doit(self, model, clip, preset, lora_strength_model, lora_strength_clip, insightface_provider, cache_mode="none", unique_id=None, context: execution_context.ExecutionContext = None):
         if 'IPAdapter' not in nodes.NODE_CLASS_MAPPINGS:
             utils.try_install_custom_node('https://github.com/cubiq/ComfyUI_IPAdapter_plus',
                                           "To use 'IPAdapterModelHelper' node, 'ComfyUI IPAdapter Plus' extension is required.")
@@ -92,9 +93,9 @@ class IPAdapterModelHelper:
 
         ipadapter, clipvision, lora, is_insightface = model_preset[preset]
 
-        ipadapter, ok1 = lookup_model("ipadapter", ipadapter)
-        clipvision, ok2 = lookup_model("clip_vision", clipvision)
-        lora, ok3 = lookup_model("loras", lora)
+        ipadapter, ok1 = lookup_model(context, "ipadapter", ipadapter)
+        clipvision, ok2 = lookup_model(context, "clip_vision", clipvision)
+        lora, ok3 = lookup_model(context, "loras", lora)
 
         if ok1 == "OK":
             ok1 = "IPADAPTER"

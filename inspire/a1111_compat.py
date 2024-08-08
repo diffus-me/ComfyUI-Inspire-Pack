@@ -1,5 +1,7 @@
 import comfy
 import torch
+
+import execution_context
 from .libs import utils
 from einops import rearrange
 import random
@@ -47,7 +49,7 @@ class RandomNoise:
         return (Inspire_RandomNoise(noise_seed, noise_mode, batch_seed_mode, variation_seed, variation_strength, variation_method=variation_method),)
 
 
-def inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
+def inspire_ksampler(context, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
                      noise_mode="CPU", disable_noise=False, start_step=None, last_step=None, force_full_denoise=False,
                      incremental_seed_mode="comfy", variation_seed=None, variation_strength=None, noise=None, callback=None, variation_method="linear"):
     device = comfy.model_management.get_torch_device()
@@ -71,7 +73,7 @@ def inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
             start_step = advanced_steps - steps
             steps = advanced_steps
 
-    samples = common.impact_sampling(
+    samples = common.impact_sampling(context=context,
         model=model, add_noise=not disable_noise, seed=seed, steps=steps, cfg=cfg, sampler_name=sampler_name, scheduler=scheduler, positive=positive, negative=negative,
         latent_image=latent, start_at_step=start_step, end_at_step=last_step, return_with_leftover_noise=not force_full_denoise, noise=noise, callback=callback)
     return samples, noise
@@ -97,7 +99,8 @@ class KSampler_inspire:
                      "variation_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                      },
                 "optional":
-                    {"variation_method": (["linear", "slerp"],), }
+                    {"variation_method": (["linear", "slerp"],), },
+                "hidden": {"context": "EXECUTION_CONTEXT"},
                 }
 
     RETURN_TYPES = ("LATENT",)
@@ -106,8 +109,8 @@ class KSampler_inspire:
     CATEGORY = "InspirePack/a1111_compat"
 
     @staticmethod
-    def doit(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, variation_method="linear"):
-        return (inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
+    def doit(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, variation_method="linear", context: execution_context.ExecutionContext = None):
+        return (inspire_ksampler(context, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
                                  incremental_seed_mode=batch_seed_mode, variation_seed=variation_seed, variation_strength=variation_strength, variation_method=variation_method)[0],)
 
 

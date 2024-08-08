@@ -1,3 +1,4 @@
+import execution_context
 import folder_paths
 import comfy.utils
 import comfy.lora
@@ -39,13 +40,13 @@ class LoraLoaderBlockWeight:
         self.loaded_lora = None
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         preset = ["Preset"]  # 20
         preset += load_lbw_preset("lbw-preset.txt")
         preset += load_lbw_preset("lbw-preset.custom.txt")
         preset = [name for name in preset if not name.startswith('@')]
 
-        lora_names = folder_paths.get_filename_list("loras")
+        lora_names = folder_paths.get_filename_list(context, "loras")
         lora_dirs = [os.path.dirname(name) for name in lora_names]
         lora_dirs = ["All"] + list(set(lora_dirs))
 
@@ -62,7 +63,9 @@ class LoraLoaderBlockWeight:
                              "preset": (preset,),
                              "block_vector": ("STRING", {"multiline": True, "placeholder": "block weight vectors", "default": "1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1", "pysssss.autocomplete": False}),
                              "bypass": ("BOOLEAN", {"default": False, "label_on": "True", "label_off": "False"}),
-                             }
+                             },
+                "hidden": {"context": "EXECUTION_CONTEXT"
+                            },
                 }
 
     RETURN_TYPES = ("MODEL", "CLIP", "STRING")
@@ -242,11 +245,11 @@ class LoraLoaderBlockWeight:
         populated_vector = ','.join(map(str, populated_vector_list))
         return (new_modelpatcher, new_clip, populated_vector)
 
-    def doit(self, model, clip, lora_name, strength_model, strength_clip, inverse, seed, A, B, preset, block_vector, bypass=False, category_filter=None):
+    def doit(self, model, clip, lora_name, strength_model, strength_clip, inverse, seed, A, B, preset, block_vector, bypass=False, category_filter=None, context: execution_context.ExecutionContext = None):
         if strength_model == 0 and strength_clip == 0 or bypass:
             return (model, clip, "")
 
-        lora_path = folder_paths.get_full_path("loras", lora_name)
+        lora_path = folder_paths.get_full_path(context, "loras", lora_name)
         lora = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
@@ -407,14 +410,14 @@ class XYInput_LoraBlockWeight:
             return None, None
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls, context: execution_context.ExecutionContext):
         preset = ["Preset"]  # 20
         preset += load_lbw_preset("lbw-preset.txt")
         preset += load_lbw_preset("lbw-preset.custom.txt")
 
         default_vectors = "SD-NONE/SD-ALL\nSD-ALL/SD-ALL\nSD-INS/SD-ALL\nSD-IND/SD-ALL\nSD-INALL/SD-ALL\nSD-MIDD/SD-ALL\nSD-MIDD0.2/SD-ALL\nSD-MIDD0.8/SD-ALL\nSD-MOUT/SD-ALL\nSD-OUTD/SD-ALL\nSD-OUTS/SD-ALL\nSD-OUTALL/SD-ALL"
 
-        lora_names = folder_paths.get_filename_list("loras")
+        lora_names = folder_paths.get_filename_list(context, "loras")
         lora_dirs = [os.path.dirname(name) for name in lora_names]
         lora_dirs = ["All"] + list(set(lora_dirs))
 
@@ -490,14 +493,17 @@ class XYInput_LoraBlockWeight:
 
 class LoraBlockInfo:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
                         "model": ("MODEL", ),
                         "clip": ("CLIP", ),
-                        "lora_name": (folder_paths.get_filename_list("loras"), ),
+                        "lora_name": (folder_paths.get_filename_list(context, "loras"), ),
                         "block_info": ("STRING", {"multiline": True}),
                     },
-                "hidden": {"unique_id": "UNIQUE_ID"},
+                "hidden": {
+                        "unique_id": "UNIQUE_ID",
+                        "context": "EXECUTION_CONTEXT"
+                    },
                 }
 
     CATEGORY = "InspirePack/LoraBlockWeight"
@@ -619,8 +625,8 @@ class LoraBlockInfo:
 
         return text
 
-    def doit(self, model, clip, lora_name, block_info, unique_id):
-        lora_path = folder_paths.get_full_path("loras", lora_name)
+    def doit(self, model, clip, lora_name, block_info, unique_id, context: execution_context.ExecutionContext):
+        lora_path = folder_paths.get_full_path(context, "loras", lora_name)
 
         lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
         text = LoraBlockInfo.extract_info(model, clip, lora)
