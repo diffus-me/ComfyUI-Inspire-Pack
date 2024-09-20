@@ -128,10 +128,10 @@ class IPAdapterModelHelper:
             if cache_mode in ["clip_vision only", "all"]:
                 ccache_key = clipvision
                 if ccache_key not in backend_support.cache:
-                    backend_support.update_cache(ccache_key, "clipvision", (False, nodes.CLIPVisionLoader().load_clip(clip_name=clipvision)[0]))
+                    backend_support.update_cache(ccache_key, "clipvision", (False, nodes.CLIPVisionLoader().load_clip(clip_name=clipvision, context=context)[0]))
                 _, (_, clipvision) = backend_support.cache[ccache_key]
             else:
-                clipvision = nodes.CLIPVisionLoader().load_clip(clip_name=clipvision)[0]
+                clipvision = nodes.CLIPVisionLoader().load_clip(clip_name=clipvision, context=context)[0]
 
         if lora is not None:
             model, clip = nodes.LoraLoader().load_lora(model=model, clip=clip, lora_name=lora, strength_model=lora_strength_model, strength_clip=lora_strength_clip)
