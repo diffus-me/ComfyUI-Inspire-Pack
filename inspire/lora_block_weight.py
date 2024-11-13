@@ -245,6 +245,11 @@ class LoraLoaderBlockWeight:
         populated_vector = ','.join(map(str, populated_vector_list))
         return (new_modelpatcher, new_clip, populated_vector)
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, model, clip, lora_name, strength_model, strength_clip, inverse, seed, A, B, preset, block_vector, bypass=False, category_filter=None, context: execution_context.ExecutionContext = None):
+        context.validate_model("loras", lora_name)
+        return True
+
     def doit(self, model, clip, lora_name, strength_model, strength_clip, inverse, seed, A, B, preset, block_vector, bypass=False, category_filter=None, context: execution_context.ExecutionContext = None):
         if strength_model == 0 and strength_clip == 0 or bypass:
             return (model, clip, "")
