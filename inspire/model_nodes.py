@@ -121,7 +121,7 @@ class IPAdapterModelHelper:
             raise Exception("ERROR: Failed to load several models in IPAdapterModelHelper.")
 
         if ipadapter is not None:
-            ipadapter = nodes.NODE_CLASS_MAPPINGS["IPAdapterModelLoader"]().load_ipadapter_model(ipadapter_file=ipadapter)[0]
+            ipadapter = nodes.NODE_CLASS_MAPPINGS["IPAdapterModelLoader"]().load_ipadapter_model(ipadapter_file=ipadapter, context=context)[0]
 
         ccache_key = ""
         if clipvision is not None:
