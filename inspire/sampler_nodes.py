@@ -1,4 +1,6 @@
 import torch
+
+import execution_context
 from . import a1111_compat
 import comfy
 from .libs import common
@@ -28,7 +30,10 @@ class KSampler_progress(a1111_compat.KSampler_inspire):
                     },
                 "optional": {
                     "scheduler_func_opt": ("SCHEDULER_FUNC",),
-                    }
+                    },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT",
+                    },
                 }
 
     CATEGORY = "InspirePack/analysis"
@@ -38,7 +43,8 @@ class KSampler_progress(a1111_compat.KSampler_inspire):
 
     @staticmethod
     def doit(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
-             interval, omit_start_latent, omit_final_latent, scheduler_func_opt=None):
+             interval, omit_start_latent, omit_final_latent, scheduler_func_opt=None,
+             context: execution_context.ExecutionContext=None):
         adv_steps = int(steps / denoise)
 
         if omit_start_latent:
@@ -55,7 +61,8 @@ class KSampler_progress(a1111_compat.KSampler_inspire):
             result.append(x)
 
         latent_image, noise = a1111_compat.KSamplerAdvanced_inspire.sample(model, True, seed, adv_steps, cfg, sampler_name, scheduler, positive, negative, latent_image, (adv_steps-steps),
-                                                                           adv_steps, noise_mode, False, callback=progress_callback, scheduler_func_opt=scheduler_func_opt)
+                                                                           adv_steps, noise_mode, False, callback=progress_callback, scheduler_func_opt=scheduler_func_opt,
+                                                                           context=context)
 
         if not omit_final_latent:
             result.append(latent_image['samples'].cpu())
@@ -94,7 +101,10 @@ class KSamplerAdvanced_progress(a1111_compat.KSamplerAdvanced_inspire):
                 "optional": {
                     "prev_progress_latent_opt": ("LATENT",),
                     "scheduler_func_opt": ("SCHEDULER_FUNC",),
-                    }
+                    },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT",
+                    },
                 }
 
     FUNCTION = "doit"
@@ -106,7 +116,8 @@ class KSamplerAdvanced_progress(a1111_compat.KSamplerAdvanced_inspire):
 
     def doit(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
              start_at_step, end_at_step, noise_mode, return_with_leftover_noise, interval, omit_start_latent, omit_final_latent,
-             prev_progress_latent_opt=None, scheduler_func_opt=None):
+             prev_progress_latent_opt=None, scheduler_func_opt=None,
+             context: execution_context.ExecutionContext=None):
 
         if omit_start_latent:
             result = []
@@ -122,7 +133,8 @@ class KSamplerAdvanced_progress(a1111_compat.KSamplerAdvanced_inspire):
             result.append(x)
 
         latent_image, noise = a1111_compat.KSamplerAdvanced_inspire.sample(model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step,
-                                                                           noise_mode, return_with_leftover_noise, callback=progress_callback, scheduler_func_opt=scheduler_func_opt)
+                                                                           noise_mode, return_with_leftover_noise, callback=progress_callback, scheduler_func_opt=scheduler_func_opt,
+                                                                           context=context)
 
         if not omit_final_latent:
             result.append(latent_image['samples'].cpu())

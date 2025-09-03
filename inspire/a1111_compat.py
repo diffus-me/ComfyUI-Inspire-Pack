@@ -7,6 +7,8 @@ import math
 from .libs import common
 import logging
 
+import execution_context
+
 
 supported_noise_modes = ["GPU(=A1111)", "CPU", "GPU+internal_seed", "CPU+internal_seed"]
 
@@ -61,7 +63,7 @@ class RandomNoise:
         return (Inspire_RandomNoise(noise_seed, noise_mode, batch_seed_mode, variation_seed, variation_strength, variation_method=variation_method, internal_seed=internal_seed),)
 
 
-def inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
+def inspire_ksampler(context, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
                      noise_mode="CPU", disable_noise=False, start_step=None, last_step=None, force_full_denoise=False,
                      incremental_seed_mode="comfy", variation_seed=None, variation_strength=None, noise=None, callback=None, variation_method="linear",
                      scheduler_func=None, internal_seed=None):
@@ -101,7 +103,7 @@ def inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
         seed = internal_seed
 
     try:
-        samples = common.impact_sampling(
+        samples = common.impact_sampling(context=context,
             model=model, add_noise=not disable_noise, seed=seed, steps=steps, cfg=cfg, sampler_name=sampler_name, scheduler=scheduler, positive=positive, negative=negative,
             latent_image=latent, start_at_step=start_step, end_at_step=last_step, return_with_leftover_noise=not force_full_denoise, noise=noise, callback=callback,
             scheduler_func=scheduler_func)
@@ -142,7 +144,8 @@ class KSampler_inspire:
                         "variation_method": (["linear", "slerp"],),
                         "scheduler_func_opt": ("SCHEDULER_FUNC",),
                         "internal_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "This is the seed used for generating noise in intermediate steps when using ancestral and SDE-based samplers.\nNOTE: If `noise_mode` is in GPU mode and `internal_seed` is the same as `seed`, the generated image may be distorted."}),
-                    }
+                    },
+                "hidden": {"context": "EXECUTION_CONTEXT"},
                 }
 
     RETURN_TYPES = ("LATENT",)
@@ -153,8 +156,8 @@ class KSampler_inspire:
     @staticmethod
     def doit(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
              batch_seed_mode="comfy", variation_seed=None, variation_strength=None, variation_method="linear", scheduler_func_opt=None,
-             internal_seed=None):
-        return (inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
+             internal_seed=None, context: execution_context.ExecutionContext = None):
+        return (inspire_ksampler(context, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode,
                                  incremental_seed_mode=batch_seed_mode, variation_seed=variation_seed, variation_strength=variation_strength, variation_method=variation_method,
                                  scheduler_func=scheduler_func_opt, internal_seed=internal_seed)[0], )
 
@@ -187,6 +190,10 @@ class KSamplerAdvanced_inspire:
                         "noise_opt": ("NOISE_IMAGE",),
                         "scheduler_func_opt": ("SCHEDULER_FUNC",),
                         "internal_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "This is the seed used for generating noise in intermediate steps when using ancestral and SDE-based samplers.\nNOTE: If `noise_mode` is in GPU mode and `internal_seed` is the same as `seed`, the generated image may be distorted."}),
+                    },
+                "hidden":
+                    {
+                        "context": "EXECUTION_CONTEXT",
                     }
                 }
 
@@ -197,7 +204,8 @@ class KSamplerAdvanced_inspire:
 
     @staticmethod
     def sample(model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, noise_mode, return_with_leftover_noise,
-               denoise=1.0, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, noise_opt=None, callback=None, variation_method="linear", scheduler_func_opt=None, internal_seed=None):
+               denoise=1.0, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, noise_opt=None, callback=None, variation_method="linear", scheduler_func_opt=None, internal_seed=None,
+               context: execution_context.ExecutionContext = None):
         force_full_denoise = True
 
         if return_with_leftover_noise:
@@ -208,7 +216,7 @@ class KSamplerAdvanced_inspire:
         if not add_noise:
             disable_noise = True
 
-        return inspire_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+        return inspire_ksampler(context, model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                 denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step,
                                 force_full_denoise=force_full_denoise, noise_mode=noise_mode, incremental_seed_mode=batch_seed_mode,
                                 variation_seed=variation_seed, variation_strength=variation_strength, noise=noise_opt, callback=callback, variation_method=variation_method,
@@ -239,6 +247,10 @@ class KSampler_inspire_pipe:
                     {
                         "scheduler_func_opt": ("SCHEDULER_FUNC",),
                         "internal_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "This is the seed used for generating noise in intermediate steps when using ancestral and SDE-based samplers.\nNOTE: If `noise_mode` is in GPU mode and `internal_seed` is the same as `seed`, the generated image may be distorted."}),
+                    },
+                "hidden":
+                    {
+                        "context": "EXECUTION_CONTEXT",
                     }
                 }
 
@@ -248,7 +260,8 @@ class KSampler_inspire_pipe:
     CATEGORY = "InspirePack/a1111_compat"
 
     def sample(self, basic_pipe, seed, steps, cfg, sampler_name, scheduler, latent_image, denoise, noise_mode, batch_seed_mode="comfy",
-               variation_seed=None, variation_strength=None, scheduler_func_opt=None, internal_seed=None):
+               variation_seed=None, variation_strength=None, scheduler_func_opt=None, internal_seed=None,
+               context: execution_context.ExecutionContext=None):
         model, clip, vae, positive, negative = basic_pipe
         latent = inspire_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise, noise_mode, incremental_seed_mode=batch_seed_mode,
                                   variation_seed=variation_seed, variation_strength=variation_strength, scheduler_func=scheduler_func_opt, internal_seed=internal_seed)[0]
@@ -280,6 +293,10 @@ class KSamplerAdvanced_inspire_pipe:
                         "noise_opt": ("NOISE_IMAGE",),
                         "scheduler_func_opt": ("SCHEDULER_FUNC",),
                         "internal_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "This is the seed used for generating noise in intermediate steps when using ancestral and SDE-based samplers.\nNOTE: If `noise_mode` is in GPU mode and `internal_seed` is the same as `seed`, the generated image may be distorted."}),
+                    },
+                "hidden":
+                    {
+                        "context": "EXECUTION_CONTEXT",
                     }
                 }
 
@@ -289,7 +306,8 @@ class KSamplerAdvanced_inspire_pipe:
     CATEGORY = "InspirePack/a1111_compat"
 
     def sample(self, basic_pipe, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, latent_image, start_at_step, end_at_step, noise_mode, return_with_leftover_noise,
-               denoise=1.0, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, noise_opt=None, scheduler_func_opt=None, internal_seed=None):
+               denoise=1.0, batch_seed_mode="comfy", variation_seed=None, variation_strength=None, noise_opt=None, scheduler_func_opt=None, internal_seed=None,
+               context: execution_context.ExecutionContext=None):
         model, clip, vae, positive, negative = basic_pipe
         latent = KSamplerAdvanced_inspire().sample(model=model, add_noise=add_noise, noise_seed=noise_seed,
                                                    steps=steps, cfg=cfg, sampler_name=sampler_name, scheduler=scheduler,
@@ -298,7 +316,8 @@ class KSamplerAdvanced_inspire_pipe:
                                                    noise_mode=noise_mode, return_with_leftover_noise=return_with_leftover_noise,
                                                    denoise=denoise, batch_seed_mode=batch_seed_mode, variation_seed=variation_seed,
                                                    variation_strength=variation_strength, noise_opt=noise_opt, scheduler_func_opt=scheduler_func_opt,
-                                                   internal_seed=internal_seed)[0]
+                                                   internal_seed=internal_seed,
+                                                   context=context)[0]
         return latent, vae
 
 

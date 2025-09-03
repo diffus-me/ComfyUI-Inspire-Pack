@@ -2,6 +2,7 @@ import json
 import os
 from .libs import common
 
+import execution_context
 import folder_paths
 import nodes
 from server import PromptServer
@@ -345,13 +346,16 @@ class ShowCachedInfo:
 
 class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
-                    "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                    "ckpt_name": (folder_paths.get_filename_list(context, "checkpoints"), ),
                     "key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'ckpt_name' as the key."}),
                 },
                 "optional": {
                     "mode": (['Auto', 'Override Cache', 'Read Only'],),
+                },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT"
                 }}
 
     RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
@@ -360,7 +364,7 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
 
     CATEGORY = "InspirePack/Backend"
 
-    def doit(self, ckpt_name, key_opt, mode='Auto'):
+    def doit(self, ckpt_name, key_opt, mode='Auto', context: execution_context.ExecutionContext = None):
         if mode == 'Read Only':
             if key_opt.strip() == '':
                 raise Exception("[CheckpointLoaderSimpleShared] key_opt cannot be omit if mode is 'Read Only'")
@@ -371,7 +375,7 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
             key = key_opt.strip()
 
         if key not in cache or mode == 'Override Cache':
-            res = self.load_checkpoint(ckpt_name)
+            res = self.load_checkpoint(ckpt_name, context)
             update_cache(key, "ckpt", (False, res))
             cache_kind = 'ckpt'
             logging.info(f"[Inspire Pack] CheckpointLoaderSimpleShared: Ckpt '{ckpt_name}' is cached to '{key}'.")
@@ -409,12 +413,13 @@ class CheckpointLoaderSimpleShared(nodes.CheckpointLoaderSimple):
 
 class LoadDiffusionModelShared(nodes.UNETLoader):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model_name": (folder_paths.get_filename_list("diffusion_models"), {"tooltip": "Diffusion Model Name"}),
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
+        return {"required": { "model_name": (folder_paths.get_filename_list(context, "diffusion_models"), {"tooltip": "Diffusion Model Name"}),
                               "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),
                               "key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'model_name' as the key."}),
                               "mode": (['Auto', 'Override Cache', 'Read Only'],),
-                              }
+                              },
+                "hidden": {"context": "EXECUTION_CONTEXT"},
                 }
     RETURN_TYPES = ("MODEL", "STRING")
     RETURN_NAMES = ("model", "cache key")
@@ -423,7 +428,7 @@ class LoadDiffusionModelShared(nodes.UNETLoader):
 
     CATEGORY = "InspirePack/Backend"
 
-    def doit(self, model_name, weight_dtype, key_opt, mode='Auto'):
+    def doit(self, model_name, weight_dtype, key_opt, mode='Auto', context: execution_context.ExecutionContext=None):
         if mode == 'Read Only':
             if key_opt.strip() == '':
                 raise Exception("[LoadDiffusionModelShared] key_opt cannot be omit if mode is 'Read Only'")
@@ -434,7 +439,7 @@ class LoadDiffusionModelShared(nodes.UNETLoader):
             key = key_opt.strip()
 
         if key not in cache or mode == 'Override Cache':
-            model = self.load_unet(model_name, weight_dtype)[0]
+            model = self.load_unet(model_name, weight_dtype, context)[0]
             update_cache(key, "diffusion", (False, model))
             logging.info(f"[Inspire Pack] LoadDiffusionModelShared: diffusion model '{model_name}' is cached to '{key}'.")
         else:
@@ -464,10 +469,10 @@ class LoadDiffusionModelShared(nodes.UNETLoader):
 
 class LoadTextEncoderShared:
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model_name1": (folder_paths.get_filename_list("text_encoders"), ),
-                              "model_name2": (["None"] + folder_paths.get_filename_list("text_encoders"), ),
-                              "model_name3": (["None"] + folder_paths.get_filename_list("text_encoders"), ),
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext=None):
+        return {"required": { "model_name1": (folder_paths.get_filename_list(context, "text_encoders"), ),
+                              "model_name2": (["None"] + folder_paths.get_filename_list(context, "text_encoders"), ),
+                              "model_name3": (["None"] + folder_paths.get_filename_list(context, "text_encoders"), ),
                               "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "sdxl", "flux", "hunyuan_video"], ),
                               "key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'model_name' as the key."}),
                               "mode": (['Auto', 'Override Cache', 'Read Only'],),
@@ -577,8 +582,8 @@ class LoadTextEncoderShared:
 
 class StableCascade_CheckpointLoader:
     @classmethod
-    def INPUT_TYPES(s):
-        ckpts = folder_paths.get_filename_list("checkpoints")
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
+        ckpts = folder_paths.get_filename_list(context, "checkpoints")
         default_stage_b = ''
         default_stage_c = ''
 

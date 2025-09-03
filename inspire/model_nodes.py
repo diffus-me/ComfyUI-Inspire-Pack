@@ -7,6 +7,8 @@ from . import backend_support
 from comfy import sdxl_clip
 import logging
 
+import execution_context
+
 
 model_preset = {
     # base
@@ -41,11 +43,11 @@ model_preset = {
     }
 
 
-def lookup_model(model_dir, name):
+def lookup_model(context: execution_context.ExecutionContext, model_dir, name):
     if name is None:
         return None, "N/A"
 
-    names = [(os.path.splitext(os.path.basename(x))[0], x) for x in folder_paths.get_filename_list(model_dir)]
+    names = [(os.path.splitext(os.path.basename(x))[0], x) for x in folder_paths.get_filename_list(context, model_dir)]
     resolved_name = [y for x, y in names if x == name]
 
     if len(resolved_name) > 0:
@@ -71,7 +73,7 @@ class IPAdapterModelHelper:
                 "clip": ("CLIP",),
                 "insightface_model_name": (['buffalo_l', 'antelopev2'],),
             },
-            "hidden": {"unique_id": "UNIQUE_ID"}
+            "hidden": {"unique_id": "UNIQUE_ID", "context": "EXECUTION_CONTEXT"}
         }
 
     RETURN_TYPES = ("IPADAPTER_PIPE", "IPADAPTER", "CLIP_VISION", "INSIGHTFACE", "MODEL", "CLIP", "STRING", "STRING")
@@ -80,7 +82,7 @@ class IPAdapterModelHelper:
 
     CATEGORY = "InspirePack/models"
 
-    def doit(self, model, preset, lora_strength_model, lora_strength_clip, insightface_provider, clip=None, cache_mode="none", unique_id=None, insightface_model_name='buffalo_l'):
+    def doit(self, model, preset, lora_strength_model, lora_strength_clip, insightface_provider, clip=None, cache_mode="none", unique_id=None, insightface_model_name='buffalo_l', context: execution_context.ExecutionContext = None):
         if 'IPAdapter' not in nodes.NODE_CLASS_MAPPINGS:
             utils.try_install_custom_node('https://github.com/cubiq/ComfyUI_IPAdapter_plus',
                                           "To use 'IPAdapterModelHelper' node, 'ComfyUI IPAdapter Plus' extension is required.")
@@ -103,9 +105,9 @@ class IPAdapterModelHelper:
 
         ipadapter, clipvision, lora, is_insightface = model_preset[preset]
 
-        ipadapter, ok1 = lookup_model("ipadapter", ipadapter)
-        clipvision, ok2 = lookup_model("clip_vision", clipvision)
-        lora, ok3 = lookup_model("loras", lora)
+        ipadapter, ok1 = lookup_model(context, "ipadapter", ipadapter)
+        clipvision, ok2 = lookup_model(context, "clip_vision", clipvision)
+        lora, ok3 = lookup_model(context, "loras", lora)
 
         if ok1 == "OK":
             ok1 = "IPADAPTER"
@@ -131,23 +133,23 @@ class IPAdapterModelHelper:
             raise Exception("ERROR: Failed to load several models in IPAdapterModelHelper.")
 
         if ipadapter is not None:
-            ipadapter = nodes.NODE_CLASS_MAPPINGS["IPAdapterModelLoader"]().load_ipadapter_model(ipadapter_file=ipadapter)[0]
+            ipadapter = nodes.NODE_CLASS_MAPPINGS["IPAdapterModelLoader"]().load_ipadapter_model(ipadapter_file=ipadapter, context=context)[0]
 
         ccache_key = ""
         if clipvision is not None:
             if cache_mode in ["clip_vision only", "all"]:
                 ccache_key = clipvision
                 if ccache_key not in backend_support.cache:
-                    backend_support.update_cache(ccache_key, "clipvision", (False, nodes.CLIPVisionLoader().load_clip(clip_name=clipvision)[0]))
+                    backend_support.update_cache(ccache_key, "clipvision", (False, nodes.CLIPVisionLoader().load_clip(clip_name=clipvision, context=context)[0]))
                 _, (_, clipvision) = backend_support.cache[ccache_key]
             else:
-                clipvision = nodes.CLIPVisionLoader().load_clip(clip_name=clipvision)[0]
+                clipvision = nodes.CLIPVisionLoader().load_clip(clip_name=clipvision, context=context)[0]
 
         if lora is not None:
-            model, clip = nodes.LoraLoader().load_lora(model=model, clip=clip, lora_name=lora, strength_model=lora_strength_model, strength_clip=lora_strength_clip)
+            model, clip = nodes.LoraLoader().load_lora(model=model, clip=clip, lora_name=lora, strength_model=lora_strength_model, strength_clip=lora_strength_clip, context=context)
 
             def f(x):
-                return nodes.LoraLoader().load_lora(model=x, clip=clip, lora_name=lora, strength_model=lora_strength_model, strength_clip=lora_strength_clip)
+                return nodes.LoraLoader().load_lora(model=x, clip=clip, lora_name=lora, strength_model=lora_strength_model, strength_clip=lora_strength_clip, context=context)
             lora_loader = f
         else:
             def f(x):

@@ -2,6 +2,9 @@ import os
 
 import torch
 from PIL import ImageOps
+
+import execution_context
+
 try:
     import pillow_jxl      # noqa: F401
     jxl = True
@@ -71,6 +74,9 @@ class LoadImagesFromDirBatch:
                 "start_index": ("INT", {"default": 0, "min": -1, "max": 0xffffffffffffffff, "step": 1}),
                 "load_always": ("BOOLEAN", {"default": False, "label_on": "enabled", "label_off": "disabled"}),
                 "sort_method": (sort_methods,),
+            },
+            "hidden": {
+                "context": "EXECUTION_CONTEXT",
             }
         }
 
@@ -86,7 +92,8 @@ class LoadImagesFromDirBatch:
         else:
             return hash(frozenset(kwargs))
 
-    def load_images(self, directory: str, image_load_cap: int = 0, start_index: int = 0, load_always=False, sort_method=None):
+    def load_images(self, directory: str, image_load_cap: int = 0, start_index: int = 0, load_always=False, sort_method=None, context: execution_context.ExecutionContext=None):
+        directory = os.path.join(folder_paths.get_output_directory(context.user_hash), directory)
         if not os.path.isdir(directory):
             raise FileNotFoundError(f"Directory '{directory} cannot be found.'")
         dir_files = os.listdir(directory)
@@ -177,6 +184,9 @@ class LoadImagesFromDirList:
                 "start_index": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "step": 1}),
                 "load_always": ("BOOLEAN", {"default": False, "label_on": "enabled", "label_off": "disabled"}),
                 "sort_method": (sort_methods,),
+            },
+            "hidden": {
+                "context": "EXECUTION_CONTEXT",
             }
         }
 
@@ -195,7 +205,8 @@ class LoadImagesFromDirList:
         else:
             return hash(frozenset(kwargs))
 
-    def load_images(self, directory: str, image_load_cap: int = 0, start_index: int = 0, load_always=False, sort_method=None):
+    def load_images(self, directory: str, image_load_cap: int = 0, start_index: int = 0, load_always=False, sort_method=None, context: execution_context.ExecutionContext=None):
+        directory = os.path.join(folder_paths.get_output_directory(context.user_hash), directory)
         if not os.path.isdir(directory):
             raise FileNotFoundError(f"Directory '{directory}' cannot be found.")
         dir_files = os.listdir(directory)
@@ -250,8 +261,8 @@ class LoadImagesFromDirList:
 
 class LoadImageInspire:
     @classmethod
-    def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
+    def INPUT_TYPES(s, user_hash: str):
+        input_dir = folder_paths.get_input_directory(user_hash)
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required": {
                                 "image": (sorted(files) + ["#DATA"], {"image_upload": True}),

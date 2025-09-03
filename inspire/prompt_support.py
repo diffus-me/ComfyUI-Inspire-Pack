@@ -20,6 +20,8 @@ from .backend_support import CheckpointLoaderSimpleShared
 
 import logging
 
+import execution_context
+
 model_path = folder_paths.models_dir
 utils.add_folder_path_and_extensions("inspire_prompts", [os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "prompts"))], {'.txt'})
 
@@ -44,12 +46,16 @@ except Exception as e:  # noqa: F841
     logging.error("[Inspire Pack] Failed to load 'prompt-builder.yaml'\nNOTE: Only files with UTF-8 encoding are supported.")
 
 
+def get_inspire_prompts_path(context):
+    return [os.path.join(folder_paths.get_output_directory(context.user_hash), 'inspire_prompts'), ]
+
 class LoadPromptsFromDir:
+
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls, context: execution_context.ExecutionContext):
         try:
             prompt_dirs = []
-            for x in folder_paths.get_folder_paths('inspire_prompts'):
+            for x in get_inspire_prompts_path(context):
                 for d in os.listdir(x):
                     if os.path.isdir(os.path.join(x, d)):
                         prompt_dirs.append(d)
@@ -63,7 +69,10 @@ class LoadPromptsFromDir:
                     "reload": ("BOOLEAN", { "default": False, "label_on": "if file changed", "label_off": "if value changed"}),
                     "load_cap": ("INT", {"default": 0, "min": 0, "step": 1, "advanced": True, "tooltip": "The amount of prompts to load at once:\n0: Load all\n1 or higher: Load a specified number"}),
                     "start_index": ("INT", {"default": 0, "min": -1, "step": 1, "max": 0xffffffffffffffff, "advanced": True, "tooltip": "Starting index for loading prompts:\n-1: The last prompt\n0 or higher: Load from the specified index"}),
-                    }
+                    },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT",
+                    },
                 }
 
     RETURN_TYPES = ("ZIPPED_PROMPT", "INT", "INT")
@@ -75,12 +84,12 @@ class LoadPromptsFromDir:
     CATEGORY = "InspirePack/Prompt"
 
     @staticmethod
-    def IS_CHANGED(prompt_dir, reload=False, load_cap=0, start_index=-1):
+    def IS_CHANGED(prompt_dir, reload=False, load_cap=0, start_index=-1, context: execution_context.ExecutionContext=None):
         if not reload:
             return prompt_dir, load_cap, start_index
         else:
             candidates = []
-            for d in folder_paths.get_folder_paths('inspire_prompts'):
+            for d in get_inspire_prompts_path(context):
                 candidates.append(os.path.join(d, prompt_dir))
 
             prompt_files = []
@@ -96,7 +105,7 @@ class LoadPromptsFromDir:
 
             for file_name in prompt_files:
                 md5.update(file_name.encode('utf-8'))
-                with open(folder_paths.get_full_path('inspire_prompts', file_name), 'rb') as f:
+                with open(file_name, 'rb') as f:
                     while True:
                         chunk = f.read(4096)
                         if not chunk:
@@ -106,9 +115,9 @@ class LoadPromptsFromDir:
             return md5.hexdigest(), load_cap, start_index
 
     @staticmethod
-    def doit(prompt_dir, reload=False, load_cap=0, start_index=-1):
+    def doit(prompt_dir, reload=False, load_cap=0, start_index=-1, context: execution_context.ExecutionContext=None):
         candidates = []
-        for d in folder_paths.get_folder_paths('inspire_prompts'):
+        for d in get_inspire_prompts_path(context):
             candidates.append(os.path.join(d, prompt_dir))
 
         prompt_files = []
@@ -156,10 +165,10 @@ class LoadPromptsFromDir:
 
 class LoadPromptsFromFile:
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls, context: execution_context.ExecutionContext):
         prompt_files = []
         try:
-            prompts_paths = folder_paths.get_folder_paths('inspire_prompts')
+            prompts_paths = get_inspire_prompts_path(context)
             for prompts_path in prompts_paths:
                 for root, dirs, files in os.walk(prompts_path):
                     for file in files:
@@ -178,6 +187,9 @@ class LoadPromptsFromFile:
                         "reload": ("BOOLEAN", {"default": False, "label_on": "if file changed", "label_off": "if value changed"}),
                         "load_cap": ("INT", {"default": 0, "min": 0, "step": 1, "advanced": True, "tooltip": "The amount of prompts to load at once:\n0: Load all\n1 or higher: Load a specified number"}),
                         "start_index": ("INT", {"default": 0, "min": -1, "max": 0xffffffffffffffff, "step": 1, "advanced": True, "tooltip": "Starting index for loading prompts:\n-1: The last prompt\n0 or higher: Load from the specified index"}),
+                        },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT",
                         }
                 }
 
@@ -190,7 +202,7 @@ class LoadPromptsFromFile:
     CATEGORY = "InspirePack/Prompt"
 
     @staticmethod
-    def IS_CHANGED(prompt_file, text_data_opt=None, reload=False, load_cap=0, start_index=-1):
+    def IS_CHANGED(prompt_file, text_data_opt=None, reload=False, load_cap=0, start_index=-1, context: execution_context.ExecutionContext=None):
         md5 = hashlib.md5()
 
         if text_data_opt is not None:
@@ -200,7 +212,7 @@ class LoadPromptsFromFile:
             return prompt_file, load_cap, start_index
         else:
             matched_path = None
-            for x in folder_paths.get_folder_paths('inspire_prompts'):
+            for x in get_inspire_prompts_path(context):
                 matched_path = os.path.join(x, prompt_file)
                 if not os.path.exists(matched_path):
                     matched_path = None
@@ -220,9 +232,9 @@ class LoadPromptsFromFile:
             return md5.hexdigest(), load_cap, start_index
 
     @staticmethod
-    def doit(prompt_file, text_data_opt=None, reload=False, load_cap=0, start_index=-1):
+    def doit(prompt_file, text_data_opt=None, reload=False, load_cap=0, start_index=-1, context: execution_context.ExecutionContext=None):
         matched_path = None
-        for d in folder_paths.get_folder_paths('inspire_prompts'):
+        for d in get_inspire_prompts_path(context):
             matched_path = os.path.join(d, prompt_file)
             if os.path.exists(matched_path):
                 break
@@ -273,10 +285,10 @@ class LoadPromptsFromFile:
 
 class LoadSinglePromptFromFile:
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls, context: execution_context.ExecutionContext):
         prompt_files = []
         try:
-            prompts_paths = folder_paths.get_folder_paths('inspire_prompts')
+            prompts_paths = get_inspire_prompts_path(context)
             for prompts_path in prompts_paths:
                 for root, dirs, files in os.walk(prompts_path):
                     for file in files:
@@ -291,7 +303,8 @@ class LoadSinglePromptFromFile:
                     "prompt_file": (prompt_files,),
                     "index": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
-                "optional": {"text_data_opt": ("STRING", {"defaultInput": True})}
+                "optional": {"text_data_opt": ("STRING", {"defaultInput": True})},
+                "hidden": {"context": "EXECUTION_CONTEXT"}
                 }
 
     RETURN_TYPES = ("ZIPPED_PROMPT",)
@@ -302,9 +315,9 @@ class LoadSinglePromptFromFile:
     CATEGORY = "InspirePack/Prompt"
 
     @staticmethod
-    def doit(prompt_file, index, text_data_opt=None):
+    def doit(prompt_file, index, text_data_opt=None, context: execution_context.ExecutionContext=None):
         prompt_path = None
-        prompts_paths = folder_paths.get_folder_paths('inspire_prompts')
+        prompts_paths = get_inspire_prompts_path(context)
         for d in prompts_paths:
             prompt_path = os.path.join(d, prompt_file)
             if os.path.exists(prompt_path):
@@ -391,8 +404,8 @@ prompt_blacklist = set(['filename_prefix'])
 
 class PromptExtractor:
     @classmethod
-    def INPUT_TYPES(s):
-        input_dir = folder_paths.get_input_directory()
+    def INPUT_TYPES(s, user_hash:str):
+        input_dir = folder_paths.get_input_directory(user_hash)
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required": {
                     "image": (sorted(files), {"image_upload": True}),
@@ -400,7 +413,10 @@ class PromptExtractor:
                     "negative_id": ("STRING", {}),
                     "info": ("STRING", {"multiline": True})
                     },
-                "hidden": {"unique_id": "UNIQUE_ID"},
+                "hidden": {
+                    "unique_id": "UNIQUE_ID",
+                    "user_hash": "USER_HASH"
+                    },
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -411,8 +427,8 @@ class PromptExtractor:
 
     OUTPUT_NODE = True
 
-    def doit(self, image, positive_id, negative_id, info, unique_id):
-        image_path = folder_paths.get_annotated_filepath(image)
+    def doit(self, image, positive_id, negative_id, info, unique_id, user_hash):
+        image_path = folder_paths.get_annotated_filepath(image, user_hash)
         info = Image.open(image_path).info
 
         positive = ""
@@ -601,7 +617,7 @@ class BNK_EncoderWrapper:
 
 class WildcardEncodeInspire:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
                         "model": ("MODEL",),
                         "clip": ("CLIP",),
@@ -616,10 +632,13 @@ class WildcardEncodeInspire:
                             "reproduce: This mode operates as 'fixed' mode only once for reproduction, and then it switches to 'populate' mode."
                                                                                }),
 
-                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list("loras"), ),
+                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list(context, "loras"), ),
                         "Select to add Wildcard": (["Select the Wildcard to add to the text"],),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     },
+                    "hidden": {
+                        "context": "EXECUTION_CONTEXT"
+                    }
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -639,22 +658,22 @@ class WildcardEncodeInspire:
             raise Exception("[ERROR] To use 'Wildcard Encode (Inspire)', you need to install 'Impact Pack'")
 
         processed = []
-        model, clip, conditioning = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=populated, model=kwargs['model'], clip=kwargs['clip'], seed=kwargs['seed'], clip_encoder=clip_encoder, processed=processed)
+        model, clip, conditioning = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=kwargs['context'], wildcard_opt=populated, model=kwargs['model'], clip=kwargs['clip'], seed=kwargs['seed'], clip_encoder=clip_encoder, processed=processed)
         return (model, clip, conditioning, processed[0])
 
 
 class MakeBasicPipe:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
         return {"required": {
-                        "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                        "ckpt_name": (folder_paths.get_filename_list(context, "checkpoints"), ),
                         "ckpt_key_opt": ("STRING", {"multiline": False, "placeholder": "If empty, use 'ckpt_name' as the key." }),
 
                         "positive_wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Positive Prompt (User Input)'}),
                         "negative_wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, 'placeholder': 'Negative Prompt (User Input)'}),
 
                         "Add selection to": ("BOOLEAN", {"default": True, "label_on": "Positive", "label_off": "Negative"}),
-                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list("loras"),),
+                        "Select to add LoRA": (["Select the LoRA to add to the text"] + folder_paths.get_filename_list(context, "loras"),),
                         "Select to add Wildcard": (["Select the Wildcard to add to the text"],),
                         "wildcard_mode": (["populate", "fixed", "reproduce"], {"default": "populate", "tooltip":
                             "populate: Before running the workflow, it overwrites the existing value of 'populated_text' with the prompt processed from 'wildcard_text'. In this mode, 'populated_text' cannot be edited.\n"
@@ -674,6 +693,9 @@ class MakeBasicPipe:
                 "optional": {
                         "vae_opt": ("VAE",)
                     },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT"
+                }
                 }
 
     CATEGORY = "InspirePack/Prompt"
@@ -693,10 +715,11 @@ class MakeBasicPipe:
                                           "To use 'Make Basic Pipe (Inspire)' node, 'Impact Pack' extension is required.")
             raise Exception("[ERROR] To use 'Make Basic Pipe (Inspire)', you need to install 'Impact Pack'")
 
-        model, clip, vae, key = CheckpointLoaderSimpleShared().doit(ckpt_name=kwargs['ckpt_name'], key_opt=kwargs['ckpt_key_opt'])
+        context = kwargs['context']
+        model, clip, vae, key = CheckpointLoaderSimpleShared().doit(ckpt_name=kwargs['ckpt_name'], key_opt=kwargs['ckpt_key_opt'], context=context)
         clip = nodes.CLIPSetLastLayer().set_last_layer(clip, kwargs['stop_at_clip_layer'])[0]
-        model, clip, positive = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=pos_populated, model=model, clip=clip, clip_encoder=clip_encoder)
-        model, clip, negative = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(wildcard_opt=neg_populated, model=model, clip=clip, clip_encoder=clip_encoder)
+        model, clip, positive = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=context, wildcard_opt=pos_populated, model=model, clip=clip, clip_encoder=clip_encoder)
+        model, clip, negative = nodes.NODE_CLASS_MAPPINGS['ImpactWildcardEncode'].process_with_loras(context=context, wildcard_opt=neg_populated, model=model, clip=clip, clip_encoder=clip_encoder)
 
         if 'vae_opt' in kwargs:
             vae = kwargs['vae_opt']
